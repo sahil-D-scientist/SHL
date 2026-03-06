@@ -1,92 +1,81 @@
-# SHL Assessment Recommendation Engine - Approach Document
+# SHL Assessment Recommendation Engine
 
-## 1. Problem Statement
+## Approach Document
 
-Hiring managers and recruiters struggle to find the right SHL assessments from a catalogue of 500+ products spanning knowledge tests, cognitive aptitude, personality inventories, coding simulations, writing simulations, and pre-packaged role solutions. The current process relies on keyword filters and manual browsing, which is time-consuming and often misses relevant assessments — especially when a role requires a balanced mix of technical and behavioral evaluation.
+---
 
-The goal: given a natural language hiring query (e.g., *"I need a 45-minute assessment for a senior data analyst proficient in SQL, Python, and Tableau"*) or a full job description, return the top 10 most relevant SHL assessments with proper balance across assessment types.
+### 1. Problem Statement
 
-## 2. Data Ingestion Pipeline
+Hiring managers and recruiters face a significant challenge when selecting the right assessments from SHL's extensive product catalogue, which contains over 500 products spanning knowledge tests, cognitive aptitude measures, personality inventories, coding simulations, writing simulations, and pre-packaged role solutions. The existing catalogue interface relies on keyword filters and manual browsing, making it time-consuming and prone to missing relevant assessments, particularly when a role requires a balanced combination of technical and behavioral evaluation.
 
-The foundation of the system is a clean, structured dataset scraped directly from SHL's product catalogue:
+This project builds an intelligent recommendation system that accepts a natural language hiring query or a complete job description and returns the top 10 most relevant SHL assessments, properly balanced across assessment types.
 
-- **Web Scraper** (`core/scraper.py`): Crawls all pages of SHL's catalogue (both Individual Test Solutions and Pre-packaged Job Solutions), then visits each assessment's detail page to extract the full description, duration, job levels, languages, and test type codes. This yields **518 unique assessments** with complete metadata.
-- **Embedding Index** (`core/embeddings.py`): Each assessment is converted into a rich text representation (name + description + test types + job levels) and embedded using OpenAI's `text-embedding-3-large` model (3072 dimensions). These vectors are stored in a **FAISS inner-product index** for sub-millisecond similarity search. A BM25 index is also built over the same corpus with **5x name boosting** so exact product name matches rank higher.
+---
 
-## 3. Recommendation Pipeline
+### 2. Data Ingestion
 
-The core pipeline (`core/graph.py`) uses **LangGraph** to orchestrate three agents with typed state flowing between them:
+The system is built on a structured dataset scraped directly from SHL's product catalogue website.
 
-### Stage 1: Query Analyzer Agent
+A custom web scraper crawls all pages of the SHL catalogue, covering both Individual Test Solutions and Pre-packaged Job Solutions. For each assessment, the scraper visits the dedicated detail page to extract the full description, completion time, applicable job levels, supported languages, and test type classifications. This process yields 518 unique assessments with complete metadata.
 
-An LLM parses the input and produces:
-- **15-20 search queries** — a mix of keyword queries using exact SHL product names (for BM25) and descriptive natural language queries (for FAISS semantic search)
-- **Extracted skills**, **duration constraints**, and **domain label**
+Each assessment is then converted into a rich text representation combining its name, description, test types, and job levels. These representations are embedded using OpenAI's text-embedding-3-large model, producing 3072-dimensional vectors stored in a FAISS inner-product index for efficient similarity search. In parallel, a BM25 keyword index is constructed over the same corpus with name-field boosting to ensure exact product name matches receive higher relevance scores.
 
-The prompt guides the LLM to generate a diverse mix of queries covering different assessment categories — skill-specific keyword queries, role-level solution queries, cognitive/personality queries, and broad descriptive queries for semantic matching.
+---
 
-### Stage 2: Hybrid Retriever Agent
+### 3. Recommendation Pipeline
 
-Combines two retrieval methods to cast a wide net:
+The recommendation engine is implemented as a three-stage pipeline orchestrated using LangGraph, with typed state flowing between independently testable nodes.
 
-- **FAISS semantic search**: Each of the 15-20 search queries is embedded and matched against the assessment index. This captures meaning-based relevance — e.g., "data analysis capabilities" matches "Tableau", "Data Warehousing", "Microsoft Excel 365".
-- **BM25 keyword search**: The same queries are tokenized and matched against the name-boosted corpus. This catches exact product name matches that semantic search misses — e.g., the query "Automata Selenium" directly matches the assessment named "Automata Selenium".
+**Stage 1 — Query Analysis.** An LLM receives the user's input and performs structured decomposition. It generates 15 to 20 search queries designed for a multi-query retrieval strategy: a mix of keyword-style queries targeting specific SHL product names (optimized for BM25 matching) and descriptive natural language queries (optimized for FAISS semantic matching). The analyzer also extracts mentioned skills, duration constraints, and a domain classification. This multi-query approach ensures broad coverage across the assessment catalogue from a single user input.
 
-**Score fusion strategy:** For each assessment, the system computes both max-score (best single query match) and sum-score (cumulative relevance across all queries) for both FAISS and BM25. These are combined as: `0.7 * max_relevance + 0.3 * breadth`, with a special BM25-only boost for strong keyword matches that FAISS ranks low, and a hit bonus for assessments found by 3+ different search queries. Per-query guaranteed slots (top 2 from each query) ensure edge-case assessments aren't lost.
+**Stage 2 — Multi-Query Hybrid Retrieval.** Each of the generated search queries is executed against both retrieval systems simultaneously. FAISS semantic search captures meaning-based relevance, matching queries like "data analysis capabilities" to assessments such as Tableau, Data Warehousing, and Microsoft Excel 365. BM25 keyword search captures exact name-based matches that semantic search may rank lower. The results from all queries across both systems are merged using a score fusion strategy that combines per-assessment max-relevance and cumulative breadth scores, with additional boosting for assessments consistently retrieved across multiple queries. This multi-query hybrid retrieval narrows 518 assessments to approximately 70 high-confidence candidates.
 
-This narrows 518 assessments down to **70 candidates** sent to the reranker.
+**Stage 3 — LLM Reranking.** An LLM evaluates the 70 candidate assessments in context and selects exactly 10. The selection prompt encodes general principles for building balanced assessment batteries: ensuring every explicitly named skill has a corresponding test, maintaining breadth across skill areas, including role-fit solution packages appropriate to the seniority level, balancing hard-skill and soft-skill assessment types, and treating distinct product versions as separate valid options. Representative examples spanning technical, sales, executive, administrative, analytical, and customer-facing roles guide the LLM to learn selection patterns applicable to any query.
 
-### Stage 3: LLM Reranker Agent
+---
 
-An LLM acts as an assessment consultant, selecting exactly 10 from the 70 candidates. The selection prompt encodes principles derived from studying how SHL assessments are typically bundled for real-world roles:
+### 4. Technology Stack
 
-1. **Named skill match** — every explicitly mentioned technology/skill gets its own test
-2. **Complete coverage** — breadth across all skill areas rather than depth in one
-3. **Role-fit solutions** — include JFA/Short Form packages matching the seniority level
-4. **Balanced assessment types** — mix Knowledge & Skills, Simulations, Personality, and Cognitive based on what the role requires
-5. **Variant awareness** — treat different versions as distinct (e.g., Professional 7.0 and 7.1 are both valid)
-6. **Context-sensitive rules** — e.g., executive roles get multiple personality assessments for cultural fit, while technical roles prioritize skill tests over personality
+| Component | Technology | Justification |
+|-----------|-----------|---------------|
+| Pipeline Orchestration | LangGraph | Typed state graph with independently testable nodes; straightforward to extend with additional stages |
+| Large Language Model | GPT-4.1 / Gemini 3.0 Flash | Configurable via environment variable; GPT-4.1 for highest accuracy, Gemini for free-tier deployment |
+| Embeddings | OpenAI text-embedding-3-large | 3072-dimensional vectors provide fine-grained similarity; used consistently regardless of LLM provider |
+| Vector Store | FAISS (IndexFlatIP) | Fast inner-product similarity search with no external infrastructure requirement |
+| Keyword Search | BM25 (rank-bm25) | Complements semantic search by capturing exact assessment name matches |
+| API Framework | FastAPI | Asynchronous request handling, automatic OpenAPI documentation, Pydantic validation |
+| Frontend | Streamlit | Interactive demonstration interface with sample queries, structured result cards, and tabular views |
 
-The prompt includes representative examples spanning developers, sales, executives, administrative roles, analysts, and customer-facing positions so the LLM learns selection patterns rather than memorizing specific queries.
+---
 
-## 4. Technology Stack & Justification
+### 5. Evaluation and Iteration
 
-| Component | Technology | Why |
-|-----------|-----------|-----|
-| Pipeline orchestration | **LangGraph** | Typed state graph with independently testable nodes; easy to extend |
-| LLM | **GPT-4.1 / Gemini 3.0 Flash** | Configurable via env var; GPT for accuracy, Gemini for free-tier deployment |
-| Embeddings | **OpenAI text-embedding-3-large** | 3072-dim vectors for fine-grained similarity; always uses OpenAI regardless of LLM provider |
-| Vector store | **FAISS (IndexFlatIP)** | Fast cosine similarity, no external infrastructure needed |
-| Keyword search | **BM25 (rank-bm25)** | Complements semantic search for exact assessment name matching |
-| API | **FastAPI** | Async, auto-generated docs, Pydantic validation, matches required API spec |
-| Frontend | **Streamlit** | Rapid interactive demo with sample queries and structured result cards |
+The system was evaluated using Mean Recall@10 on a labeled training set containing 10 queries with 65 total relevant assessments.
 
-## 5. Evaluation & Iteration
+| Version | Description | Mean Recall@10 |
+|---------|-------------|---------------|
+| v1 | Baseline FAISS semantic search | 0.35 |
+| v2 | Hybrid retrieval with BM25 and name boosting | 0.45 |
+| v3 | Multi-query generation via LLM query analyzer | 0.52 |
+| v4 | LLM reranker with assessment selection principles | 0.58 |
+| v5 | Score fusion optimization with hit bonuses and guaranteed slots | 0.62 |
+| v6 | Refined reranker with variant awareness and balanced examples | **0.68** |
 
-**Metric:** Mean Recall@10 on the labeled train set (10 queries, 65 relevant assessments).
+To guide iteration, each query was diagnosed separately by measuring retriever pool coverage (how many relevant assessments appear in the top 70 candidates) versus reranker selection accuracy (how many the LLM actually picks). This analysis revealed that 95 percent of relevant assessments reach the candidate pool, confirming that retriever coverage is not the bottleneck. The primary improvement opportunity lies in reranker prompt quality and selection strategy.
 
-| Iteration | What Changed | Mean Recall@10 |
-|-----------|-------------|---------------|
-| v1 | FAISS semantic search only | ~0.35 |
-| v2 | Added BM25 hybrid retrieval with name boosting | ~0.45 |
-| v3 | LLM query analyzer generating multi-query search terms | ~0.52 |
-| v4 | LLM reranker with selection principles | ~0.58 |
-| v5 | Score fusion tuning (Max+Sum, hit bonus, guaranteed slots) | ~0.62 |
-| v6 | Refined reranker (variant awareness, role-specific patterns, balanced examples) | **~0.68** |
+As a concrete example, the entry-level sales query has 9 relevant assessments. Early versions selected only 3 sales-related packages. After refining the reranker to prioritize exhausting all matching role-specific packages before adding generic assessments, recall for that query improved from 0.33 to 0.56.
 
-**Diagnostic approach:** For each train query, I separately measured (a) how many relevant assessments appear in the retriever's 70-candidate pool and (b) how many the reranker actually selects. This revealed that **95% of relevant assessments (62/65) make it into the candidate pool** — the retrieval stage has near-perfect coverage. The remaining recall gap comes from the reranker sometimes selecting related-but-not-exact assessments, making reranker prompt quality the primary lever for further improvement.
+---
 
-**Example improvement:** For the entry-level sales query (9 relevant assessments), early versions only selected 3 sales packages. After adding a reranker principle to "exhaust all matching role packages before adding generic tests", recall for this query jumped from 0.33 to 0.56 — the LLM now selects all 5 sales packages first, then fills remaining slots with communication assessments.
-
-## 6. Deliverables
+### 6. Deliverables
 
 | Deliverable | Location | Description |
 |------------|----------|-------------|
-| API | `app.py` | FastAPI with `GET /health` and `POST /recommend` per spec |
-| Frontend | `streamlit/streamlit_app.py` | Interactive UI with sample queries, result cards, table view |
-| Pipeline | `core/graph.py` | LangGraph pipeline: QueryAnalyzer → Retriever → Reranker |
-| Data scraper | `core/scraper.py` | Scrapes full SHL catalogue (518 assessments with complete descriptions) |
-| Embedding builder | `core/embeddings.py` | FAISS index + BM25 index construction |
-| Evaluation | `evaluate.py` | Parallel train evaluation (Recall@K) + test set prediction generation |
-| Test predictions | `output/predictions.csv` | 9 test queries × 10 recommendations = 90 rows |
-| Configuration | `config.py` | LLM provider toggle (GPT/Gemini), all hyperparameters |
+| REST API | `app.py` | FastAPI service with `/health` and `/recommend` endpoints matching the required specification |
+| Web Frontend | `streamlit/streamlit_app.py` | Interactive Streamlit application with sample queries, assessment cards, and table export |
+| Core Pipeline | `core/graph.py` | LangGraph pipeline implementing Query Analyzer, Multi-Query Hybrid Retriever, and LLM Reranker |
+| Data Scraper | `core/scraper.py` | SHL catalogue scraper producing 518 assessments with complete descriptions |
+| Index Builder | `core/embeddings.py` | FAISS vector index and BM25 keyword index construction |
+| Evaluation Script | `evaluate.py` | Parallelized train-set evaluation with Recall@K metrics and test-set prediction generation |
+| Test Predictions | `output/predictions.csv` | Predictions for 9 unlabeled test queries (90 rows in the required submission format) |
+| Configuration | `config.py` | Centralized settings including LLM provider toggle, model selection, and pipeline hyperparameters |

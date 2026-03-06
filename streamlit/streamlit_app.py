@@ -9,7 +9,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import streamlit as st
-from core.graph import recommend, warmup
+from core.graph import recommend, warmup, query_analyzer_node, retriever_node, reranker_node, GraphState, get_bm25
 
 # ---------------------------------------------------------------------------
 # Page config
@@ -176,8 +176,48 @@ if run and query.strip():
     if "query_input" in st.session_state:
         del st.session_state["query_input"]
 
-    with st.spinner("Analyzing query and searching assessments..."):
-        results = recommend(query)
+    progress = st.empty()
+    status_col1, status_col2, status_col3 = st.columns(3)
+
+    # Step 1: Query Analysis
+    with status_col1:
+        s1 = st.status("Step 1: Query Analysis", expanded=True)
+        s1.write("Parsing query and generating search terms...")
+    with status_col2:
+        s2 = st.status("Step 2: Hybrid Retrieval", expanded=False)
+    with status_col3:
+        s3 = st.status("Step 3: LLM Reranking", expanded=False)
+
+    state = GraphState(
+        query=query, search_queries=[], skills=[],
+        max_duration=None, domain="", candidates=[], recommendations=[],
+    )
+    qa_result = query_analyzer_node(state)
+    state.update(qa_result)
+    n_queries = len(state.get("search_queries", []))
+    skills = state.get("skills", [])
+    s1.write(f"Generated {n_queries} search queries")
+    if skills:
+        s1.write(f"Skills: {', '.join(skills[:8])}")
+    s1.update(label="Step 1: Query Analysis", state="complete")
+
+    # Step 2: Retrieval
+    s2.update(expanded=True)
+    s2.write("Running FAISS semantic + BM25 keyword search...")
+    get_bm25()  # ensure BM25 index loaded
+    ret_result = retriever_node(state)
+    state.update(ret_result)
+    n_cands = len(state.get("candidates", []))
+    s2.write(f"Found {n_cands} candidate assessments")
+    s2.update(label="Step 2: Hybrid Retrieval", state="complete")
+
+    # Step 3: Reranking
+    s3.update(expanded=True)
+    s3.write(f"LLM selecting top 10 from {n_cands} candidates...")
+    rerank_result = reranker_node(state)
+    results = rerank_result.get("recommendations", [])
+    s3.write(f"Selected {len(results)} assessments")
+    s3.update(label="Step 3: LLM Reranking", state="complete")
 
     if results:
         st.markdown(f"#### Recommended Assessments ({len(results)})")
