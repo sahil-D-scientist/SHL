@@ -14,7 +14,7 @@ Hiring managers and recruiters face a significant challenge when selecting the r
 
 ### 2. Data Ingestion
 
-- Custom web scraper crawls all pages of the SHL product catalogue.
+- Custom web scraper crawls all pages of the SHL Individual Test Solutions catalogue.
 - For each of the **518 assessments**, the scraper visits the detail page and extracts:
   - Full description
   - Completion time
@@ -87,7 +87,7 @@ Evaluated using **Mean Recall@10** on a labeled training set (10 queries, 65 tot
 | v3 | Multi-query generation via LLM query analyzer | 0.52 |
 | v4 | LLM reranker with assessment selection principles | 0.58 |
 | v5 | Score fusion optimization with hit bonuses and guaranteed slots | 0.62 |
-| v6 | Refined reranker with variant awareness and balanced examples | **0.68** |
+| v6 | Refined reranker with variant awareness and balanced examples | 0.68 |
 
 **Key Insights:**
 
@@ -109,4 +109,3 @@ Evaluated using **Mean Recall@10** on a labeled training set (10 queries, 65 tot
 | Index Builder | `core/embeddings.py` | FAISS vector index and BM25 keyword index construction |
 | Evaluation | `evaluate.py` | Parallelized train-set evaluation with Recall@K metrics |
 | Predictions | `output/predictions.csv` | Test set predictions (9 queries, 90 rows) |
-| Configuration | `config.py` | LLM provider toggle, model selection, pipeline hyperparameters |
