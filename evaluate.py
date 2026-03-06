@@ -213,16 +213,13 @@ if __name__ == "__main__":
     os.makedirs(config.OUTPUT_DIR, exist_ok=True)
 
     dataset_path = os.path.join(os.path.dirname(__file__), "input", "Gen_AI Dataset.xlsx")
-    provider = config.LLM_PROVIDER.upper()
-    model_name = config.GEMINI_MODEL if config.LLM_PROVIDER == "gemini" else config.LLM_MODEL
-
     # Tee all console output to a log file
     log_path = os.path.join(config.OUTPUT_DIR, "evaluation_log.txt")
     tee = TeeWriter(log_path)
     sys.stdout = tee
 
     print(f"SHL Assessment Recommendation Engine - Evaluation")
-    print(f"Provider: {provider} | Model: {model_name}")
+    print(f"Model: {config.LLM_MODEL}")
     print(f"Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
     # --- Train set evaluation ---
@@ -231,20 +228,20 @@ if __name__ == "__main__":
     print("=" * 60)
     mean_recall = evaluate_train_set(dataset_path)
 
-    # --- Test set predictions ---
-    print(f"\n\n{'=' * 60}")
-    print("GENERATING TEST SET PREDICTIONS")
-    print("=" * 60)
-    predictions_path = os.path.join(config.OUTPUT_DIR, "predictions.csv")
-    generate_test_predictions(dataset_path, predictions_path)
+    # # --- Test set predictions ---
+    # print(f"\n\n{'=' * 60}")
+    # print("GENERATING TEST SET PREDICTIONS")
+    # print("=" * 60)
+    # predictions_path = os.path.join(config.OUTPUT_DIR, "predictions.csv")
+    # generate_test_predictions(dataset_path, predictions_path)
 
-    # --- Summary ---
-    print(f"\n{'=' * 60}")
-    print("OUTPUT FILES GENERATED:")
-    print(f"  1. {log_path}")
-    print(f"  2. {predictions_path}")
-    print(f"  Mean Recall@{config.TOP_K_FINAL}: {mean_recall:.4f}")
-    print("=" * 60)
+    # # --- Summary ---
+    # print(f"\n{'=' * 60}")
+    # print("OUTPUT FILES GENERATED:")
+    # print(f"  1. {log_path}")
+    # print(f"  2. {predictions_path}")
+    # print(f"  Mean Recall@{config.TOP_K_FINAL}: {mean_recall:.4f}")
+    # print("=" * 60)
 
     # Restore stdout and close log
     sys.stdout = tee.stdout

@@ -4,18 +4,11 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # ---------------------------------------------------------------------------
-# LLM Provider Selection: "gpt" or "gemini"
+# OpenAI Configuration
 # ---------------------------------------------------------------------------
-LLM_PROVIDER = os.getenv("LLM_PROVIDER", "gpt").lower()  # "gpt" or "gemini"
-
-# OpenAI Configuration (used when LLM_PROVIDER = "gpt")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 EMBEDDING_MODEL = "text-embedding-3-large"
 LLM_MODEL = "gpt-4.1"
-
-# Gemini Configuration (used when LLM_PROVIDER = "gemini")
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "")
-GEMINI_MODEL = "gemini-3.0-flash"  # best free-tier Gemini model
 
 # Paths
 DATA_DIR = os.path.join(os.path.dirname(__file__), "data")

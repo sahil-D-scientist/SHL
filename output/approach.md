@@ -67,8 +67,8 @@ The engine is a three-stage pipeline orchestrated using **LangGraph**, with type
 | Component | Technology | Justification |
 |-----------|-----------|---------------|
 | Pipeline Orchestration | LangGraph | Typed state graph with independently testable nodes |
-| Large Language Model | GPT-4.1 / Gemini 3.0 Flash | Configurable via environment variable |
-| Embeddings | OpenAI text-embedding-3-large | 3072-dim vectors; used regardless of LLM provider |
+| Large Language Model | GPT-4.1 | High accuracy for query analysis and reranking |
+| Embeddings | OpenAI text-embedding-3-large | 3072-dim vectors for fine-grained similarity |
 | Vector Store | FAISS (IndexFlatIP) | Fast inner-product similarity, no external infra needed |
 | Keyword Search | BM25 (rank-bm25) | Complements semantic search with exact name matches |
 | API Framework | FastAPI | Async handling, OpenAPI docs, Pydantic validation |

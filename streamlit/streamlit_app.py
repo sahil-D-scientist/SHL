@@ -342,7 +342,7 @@ elif run:
 st.markdown("---")
 st.markdown(
     '<div style="text-align:center;color:#94a3b8;font-size:0.85rem;">'
-    'SHL Assessment Recommendation Engine &middot; Powered by LangGraph + FAISS + BM25 + GPT/Gemini'
+    'SHL Assessment Recommendation Engine &middot; Powered by LangGraph + FAISS + BM25 + GPT-4.1'
     '</div>',
     unsafe_allow_html=True,
 )

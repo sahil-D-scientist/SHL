@@ -23,20 +23,13 @@ from core.embeddings import load_index
 
 
 def _create_llm(temperature: float):
-    """Create LLM instance based on config.LLM_PROVIDER."""
-    if config.LLM_PROVIDER == "gemini":
-        from langchain_google_genai import ChatGoogleGenerativeAI
-        return ChatGoogleGenerativeAI(
-            model=config.GEMINI_MODEL,
-            google_api_key=config.GOOGLE_API_KEY,
-            temperature=temperature,
-        )
-    else:
-        return ChatOpenAI(
-            model=config.LLM_MODEL,
-            api_key=config.OPENAI_API_KEY,
-            temperature=temperature,
-        )
+    """Create LLM instance."""
+    return ChatOpenAI(
+        model=config.LLM_MODEL,
+        api_key=config.OPENAI_API_KEY,
+        temperature=temperature,
+    )
+
 
 # ---------------------------------------------------------------------------
 # Shared state flowing through the graph
@@ -221,9 +214,9 @@ def query_analyzer_node(state: GraphState) -> dict:
     ])
 
     try:
-        parsed = json.loads(response.content)
-    except json.JSONDecodeError:
         content = response.content
+        parsed = json.loads(content)
+    except (json.JSONDecodeError, TypeError):
         if "```json" in content:
             content = content.split("```json")[1].split("```")[0]
         elif "```" in content:
@@ -532,7 +525,7 @@ Available assessments (select {top_k_final}):
             content = content.split("```")[1].split("```")[0]
         result = json.loads(content)
         selected_indices = result.get("selected", [])
-    except (json.JSONDecodeError, AttributeError, IndexError):
+    except (json.JSONDecodeError, TypeError, AttributeError, IndexError):
         selected_indices = list(range(1, min(top_k_final + 1, len(candidates) + 1)))
 
     # Map indices to recommendations
