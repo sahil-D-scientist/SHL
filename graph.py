@@ -66,7 +66,7 @@ def get_llm():
         _llm = ChatOpenAI(
             model=config.LLM_MODEL,
             api_key=config.OPENAI_API_KEY,
-            temperature=0.0,
+            temperature=0.7,
         )
     return _llm
 
@@ -78,7 +78,7 @@ def get_llm_reranker():
         _llm_reranker = ChatOpenAI(
             model=config.LLM_MODEL,
             api_key=config.OPENAI_API_KEY,
-            temperature=0.0,
+            temperature=0.7,
         )
     return _llm_reranker
 
@@ -98,6 +98,7 @@ def get_index():
     if _faiss_index is None:
         _faiss_index, _assessments, _texts = load_index()
     return _faiss_index, _assessments, _texts
+
 
 
 def _tokenize(text: str) -> list[str]:
@@ -154,40 +155,47 @@ QUERY GENERATION STRATEGY (apply to ANY role):
 1. For each technology/skill NAMED in the query → create a keyword query using the exact SHL assessment name
 2. For the role type → find matching JFA, Short Form, or Pre-packaged solutions
 3. For supporting skills implied by the role → add relevant cognitive, communication, or personality queries
-4. Add 2-3 descriptive/semantic queries about the role
+4. ALWAYS include these for the matching role type:
+   - Manager/director roles → "WriteX Email Writing Sales", "WriteX Email Writing Managerial", "SHL Verify Interactive Inductive Reasoning", "Microsoft Excel 365 Essentials"
+   - Analyst/consultant roles → "SHL Verify Interactive Numerical Calculation", "Verify Verbal Ability", "Administrative Professional Short Form", "Professional 7.1 solution"
+   - Technical roles → "Automata" simulations, related framework/language tests
+   - Customer-facing roles → "SVAR Spoken English", "Business Communication", "English Comprehension"
+   - Data roles with SQL → always include "SQL Server" (not just "SQL"), "SQL Server Analysis Services SSAS", "Data Warehousing"
+   - Media/communication/creative roles → "Verify Verbal Ability", "English Comprehension", "Interpersonal Communications", "Marketing", "Business Communication"
+5. Add 2-3 descriptive/semantic queries about the role
 
 EXAMPLES (showing the principle — generalize to any role):
 
-Query: "Java developer who collaborates, 40 min"
+Query: "React frontend developer with Node.js, 45 min"
 {
-  "search_queries": ["Core Java entry level assessment", "Core Java advanced level", "Java 8 programming test", "Automata coding simulation", "Automata Fix code debugging", "technology professional 8.0 job focused assessment", "interpersonal communications skills", "agile software development", "professional 8.0 JFA", "software development knowledge test", "collaboration and teamwork assessment", "object oriented programming"],
-  "skills": ["Java", "collaboration", "OOP", "agile"],
-  "max_duration_minutes": 40,
+  "search_queries": ["ReactJS assessment", "JavaScript programming test", "Node.js development", "HTML/CSS web development", "Automata Front End coding simulation", "Automata Fix code debugging", "technology professional 8.0 job focused assessment", "CSS3 styling test", "agile software development", "professional 7.1 solution", "front end web developer assessment", "full stack development skills"],
+  "skills": ["React", "JavaScript", "Node.js", "HTML/CSS", "frontend development"],
+  "max_duration_minutes": 45,
   "domain": "software development"
 }
 
-Query: "COO for China company, cultural fit, 1 hour"
+Query: "VP of Engineering, leadership and team building"
 {
-  "search_queries": ["enterprise leadership report", "enterprise leadership report 2.0", "OPQ leadership report", "occupational personality questionnaire OPQ32", "OPQ team types and leadership styles report", "global skills assessment", "executive scenarios narrative report", "motivation questionnaire MQM5", "OPQ emotional intelligence report", "executive short form", "MFS 360 enterprise leadership", "strategic leadership evaluation"],
-  "skills": ["operations management", "leadership", "cultural fit", "executive strategy"],
-  "max_duration_minutes": 60,
-  "domain": "executive leadership"
-}
-
-Query: "Senior Data Analyst, SQL, Python, Tableau, 5 years"
-{
-  "search_queries": ["SQL Server analysis services SSAS", "SQL Server assessment", "Automata SQL coding simulation", "Python programming test", "Tableau data visualization", "data warehousing concepts", "Microsoft Excel 365 essentials", "professional 7.0 solution", "professional 7.1 solution", "technology professional 8.0 job focused", "data science assessment", "numerical reasoning ability test"],
-  "skills": ["SQL", "Python", "Tableau", "data analysis", "statistics", "Excel"],
+  "search_queries": ["enterprise leadership report", "enterprise leadership report 2.0", "OPQ leadership report", "occupational personality questionnaire OPQ32", "OPQ team types and leadership styles report", "global skills assessment", "director short form", "executive scenarios narrative report", "motivation questionnaire MQM5", "OPQ emotional intelligence report", "MFS 360 enterprise leadership", "technology management leadership"],
+  "skills": ["leadership", "team building", "engineering management", "strategic planning"],
   "max_duration_minutes": null,
-  "domain": "data analytics"
+  "domain": "engineering leadership"
 }
 
-Query: "ICICI Bank Assistant Admin, 0-2 years, 30-40 min"
+Query: "DevOps engineer, AWS, Docker, Kubernetes, 3 years experience"
 {
-  "search_queries": ["bank administrative assistant short form", "administrative professional short form", "financial professional short form", "verify numerical ability", "general entry level data entry 7.0 solution", "basic computer literacy Windows 10", "data entry skills assessment", "workplace administration skills", "entry level cashier 7.1", "financial accounting knowledge", "customer service short form"],
-  "skills": ["banking", "administration", "data entry", "financial transactions", "computer literacy"],
-  "max_duration_minutes": 40,
-  "domain": "banking"
+  "search_queries": ["Amazon Web Services AWS development", "Docker containerization", "Kubernetes orchestration", "Linux administration", "Shell scripting", "Automata coding simulation", "cloud computing assessment", "technology professional 8.0 JFA", "professional 7.1 solution", "Jenkins CI CD", "microservices architecture", "infrastructure automation DevOps"],
+  "skills": ["AWS", "Docker", "Kubernetes", "Linux", "CI/CD", "cloud computing"],
+  "max_duration_minutes": null,
+  "domain": "DevOps"
+}
+
+Query: "Hotel front desk receptionist, fresher, 30 min"
+{
+  "search_queries": ["front desk associate solution", "customer service short form", "entry level customer service 7.1", "hospitality manager solution", "English comprehension", "SVAR spoken English", "business communication adaptive", "interpersonal communications", "basic computer literacy Windows 10", "data entry skills", "entry level hotel front desk solution", "customer facing hospitality assessment"],
+  "skills": ["customer service", "communication", "English", "computer literacy", "hospitality"],
+  "max_duration_minutes": 30,
+  "domain": "hospitality"
 }
 
 Return JSON with:
@@ -307,7 +315,7 @@ def retriever_node(state: GraphState) -> dict:
     for url in all_urls:
         fs = faiss_norm.get(url, 0.0)
         bs = bm25_norm.get(url, 0.0)
-        fused_scores[url] = 0.6 * fs + 0.4 * bs
+        fused_scores[url] = 0.8 * fs + 0.2 * bs
 
     # Sort by fused score, take top N
     sorted_items = sorted(fused_scores.items(), key=lambda x: x[1], reverse=True)[:config.TOP_K_TO_LLM]
@@ -363,37 +371,47 @@ def reranker_node(state: GraphState) -> dict:
 
 SELECTION PRINCIPLES:
 
-1. NAMED SKILL MATCH (highest priority): If the query names a technology/skill (e.g., "Python", "SQL", "Java", "Excel"), you MUST include the assessment that tests that exact skill.
+1. NAMED SKILL MATCH (highest priority): If the query names a technology/skill (e.g., "Python", "SQL", "Java", "Excel"), you MUST include the assessment that tests that exact skill. EVERY named skill needs its own test.
 
-2. COMPLETE SKILL COVERAGE: Cover ALL different skill areas in the query. If 5 skills are mentioned, each should have at least one assessment. Don't cluster multiple assessments on one skill while ignoring others.
+2. COMPLETE SKILL COVERAGE: Cover ALL different skill areas. If the query mentions 5 skills, pick 5 different skill tests — don't pick 3 tests for one skill while ignoring others. Breadth over depth.
 
 3. ROLE-FIT SOLUTIONS: Include 1-2 pre-packaged solutions (JFA, Short Form, 7.0/7.1) that match the role type and seniority.
 
-4. NO DUPLICATES: Never pick near-duplicates (e.g., "Professional 7.1 Americas" vs "Professional 7.1 International" — pick one only).
+4. LIMIT PERSONALITY TESTS: Pick at most 1 OPQ/personality assessment. Do NOT pick multiple OPQ reports (e.g., OPQ32 + OPQ Leadership + OPQ Candidate = too many). Use remaining slots for skill-specific tests instead.
+
+5. LIMIT DUPLICATES: Never pick near-duplicates or variants of the same assessment (e.g., "Professional 7.1 Americas" vs "Professional 7.1 International", or "MS Excel" + "Microsoft Excel 365" + "Microsoft Excel 365 Essentials" = pick at most 2). BUT different difficulty levels ARE distinct tests — "Core Java Entry Level" and "Core Java Advanced Level" are BOTH valid picks for a Java role.
+
+6. COMMUNICATION-HEAVY ROLES: For roles involving public interaction, media, broadcasting, writing, or customer communication, ALWAYS include verbal/comprehension tests (Verify Verbal Ability, English Comprehension, Interpersonal Communications) alongside domain-specific tests.
+
+7. PREFER SPECIFIC OVER GENERIC: When multiple similar assessments exist, prefer the more specific/advanced one:
+   - Prefer "SHL Verify Interactive" versions over basic "Verify" versions (they are more modern)
+   - Prefer "SQL Server" over generic "SQL" (more comprehensive)
+   - Prefer "Professional + 7.1" over "Professional 7.1" (the + version is the primary one)
+   - Prefer assessments with "Knowledge & Skills" or "Simulations" types for technical roles over personality-only assessments
 {dur_note}
 
 EXAMPLES of good assessment batteries (learn the selection pattern, apply to any role):
 
-Java Developer + collaboration, 40 min → Core Java Advanced, Core Java Entry Level, Java 8, Automata Fix, Technology Professional JFA, Agile Software Development, Interpersonal Communications
-(Pattern: skill-specific tests + coding sim + role-fit JFA + soft skill)
+React Developer + Node.js, 45 min → ReactJS, JavaScript, Node.js, HTML/CSS, Automata Front End, Automata Fix, Technology Professional 8.0 JFA, Agile Software Development
+(Pattern: one test per named skill + coding sims + role-fit JFA)
 
-Senior Data Analyst (SQL, Python, Tableau, Excel) → SQL Server Analysis Services, SQL Server, Automata SQL, Python, Tableau, Excel 365 Essentials, Excel 365, Data Warehousing, Professional 7.0, Professional 7.1
-(Pattern: one test per named skill + related sim + role-fit solutions)
+DevOps Engineer (AWS, Docker, Kubernetes) → AWS Development, Docker, Kubernetes, Linux Administration, Shell Scripting, Cloud Computing, Automata Pro, Professional 7.1
+(Pattern: one test per named skill + related technologies + role-fit solution)
 
-COO, cultural fit → Enterprise Leadership Report 2.0, Enterprise Leadership 1.0, OPQ32, OPQ Leadership Report, OPQ Team Types, Global Skills Assessment
-(Pattern: leadership reports + personality for cultural fit)
+VP of Engineering, team building → Enterprise Leadership Report 2.0, Enterprise Leadership 1.0, OPQ32, OPQ Leadership Report, OPQ Team Types, Director Short Form, Global Skills Assessment
+(Pattern: leadership reports + personality for cultural fit + executive package)
 
-Bank Admin, entry-level → Bank Administrative Short Form, Administrative Professional Short Form, Financial Professional Short Form, Verify Numerical, General Entry Level Data Entry, Basic Computer Literacy
-(Pattern: role-specific packages + practical aptitude tests)
+Hotel Receptionist, fresher → Entry Level Hotel Front Desk Solution, Front Desk Associate Solution, Customer Service Short Form, SVAR Spoken English, English Comprehension, Basic Computer Literacy
+(Pattern: role-specific packages + communication + practical skills)
 
-Sales Graduate → Entry Level Sales 7.1, Sales Sift Out, Sales Representative Solution, Business Communication, SVAR Spoken English, Interpersonal Communications, English Comprehension
-(Pattern: role-specific packages + communication + language tests)
+Contact Center Team Lead → Contact Center Manager Short Form, Contact Center Customer Service 8.0, WriteX Email Writing Customer Service, Business Communication, Interpersonal Communications, Verify Verbal Ability, OPQ32
+(Pattern: role packages + writing sim + communication + cognitive + personality)
 
-Marketing Manager → Marketing, Digital Advertising, SEO, Excel 365 Essentials, Manager 8.0 JFA, WriteX Email Writing, Inductive Reasoning
-(Pattern: domain knowledge + manager JFA + writing sim + reasoning)
+Product Owner (Agile, JIRA, stakeholder management) → Agile Software Development, Project Management, Software Business Analysis, Manager 8.0 JFA, OPQ32, Verify Interactive Inductive Reasoning, WriteX Email Writing Managerial
+(Pattern: domain knowledge + manager JFA + personality + reasoning + writing sim)
 
-Consultant → Verify Interactive Numerical, Verify Verbal Ability, OPQ32, Administrative Professional Short Form, Professional 7.1
-(Pattern: cognitive tests + personality + role-fit solution)
+Bookkeeper, entry-level → Bookkeeping Accounting Auditing Clerk Short Form, Financial Accounting, Accounts Payable, Accounts Receivable, Microsoft Excel 365, Verify Numerical Ability
+(Pattern: role package + domain skills + office tools + cognitive aptitude)
 
 For any role not shown: apply the same principle — match assessments directly to the skills and competencies the role requires.
 
