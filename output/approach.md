@@ -23,9 +23,7 @@ An LLM parses the input and produces:
 - **15-20 search queries** — a mix of keyword queries using exact SHL product names (for BM25) and descriptive natural language queries (for FAISS semantic search)
 - **Extracted skills**, **duration constraints**, and **domain label**
 
-The prompt was designed by systematically analyzing the SHL catalogue's naming conventions. For example, SHL uses "Automata" prefixes for coding simulations, "WriteX" for writing tests, "Verify" for cognitive aptitude, "OPQ" for personality, and role-specific suffixes like "JFA", "Short Form", and "Solution". The analyzer uses these patterns to generate targeted search queries — e.g., for a "Product Manager" query, it knows to search for "Agile Software Development", "Manager 8.0 JFA", "OPQ32", and "WriteX Email Writing Managerial" alongside the semantic queries.
-
-It also identifies implied skills: a manager role implies writing ability, a data role implies Excel proficiency, a customer-facing role implies communication assessments.
+The prompt guides the LLM to generate a diverse mix of queries covering different assessment categories — skill-specific keyword queries, role-level solution queries, cognitive/personality queries, and broad descriptive queries for semantic matching.
 
 ### Stage 2: Hybrid Retriever Agent
 
