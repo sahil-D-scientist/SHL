@@ -227,8 +227,6 @@ query = st.text_area(
 col_btn, col_info = st.columns([1, 3])
 with col_btn:
     run = st.button("Get Recommendations", type="primary", use_container_width=True)
-with col_info:
-    st.caption("Returns up to 10 SHL assessments ranked by relevance")
 
 
 # ---------------------------------------------------------------------------
